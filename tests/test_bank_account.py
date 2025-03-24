@@ -1,40 +1,8 @@
-import unittest
-
+import unittest, os
+from unittest.mock import patch
+from src.exceptions import InsufficientFundsError, WithdrawalTimeRestrictionError
 from src.bank_account import BankAccount
-'''
-comando en terminal para ejecutar las pruebas: python -m unittest discover -v -s tests
 
-'''
-
-'''
-class BankAccountTests(unittest.TestCase):
-
-    def setUp(self) -> None:  # Se ejecuta antes de cada test
-        self.account = BankAccount(balance=1000)  # Se crea una cuenta con un balance de 1000
-
-    def test_deposit(self):  # Se crea un test
-        new_balance = self.account.deposit(500)  # Se depositan 500
-        assert new_balance == 1500  # Se espera que el nuevo balance sea 1500
-
-    def test_withdraw(self):
-        new_balance = self.account.withdraw(200)
-        assert new_balance == 800
-    
-    def test_get_balance(self):
-        assert self.account.get_balance() == 1000
-
-################################################################
-    def test_transfer(self):
-        target_account = BankAccount(balance=500)
-        new_balance = self.account.transfer(500, target_account)
-        assert new_balance == 500
-        assert target_account.balance == 1000
-        
-    def test_transfer_not_enough_balance(self):
-        target_account = BankAccount(balance=500)
-        with self.assertRaises(ValueError):
-            self.account.transfer(1500, target_account)
-'''
 
 class BankAccountTests(unittest.TestCase):
 
@@ -49,23 +17,62 @@ class BankAccountTests(unittest.TestCase):
         with open(filename, "r") as f:
             return len(f.readlines())
 
-    def test_deposit(self):
+    def test_deposit_increases_balance_by_deposit_amount(self):
         new_balance = self.account.deposit(500)
-        assert new_balance == 1500
+        self.assertEqual(new_balance, 1500, "El balance no es igual")
 
-    def test_withdraw(self):
+    @patch("src.bank_account.datetime")
+    def test_withdraw_decreases_balance_by_withdraw_amount(self, mock_datetime):
+        mock_datetime.now.return_value.hour = 10
         new_balance = self.account.withdraw(200)
-        assert new_balance == 800
+        self.assertEqual(new_balance, 800, "El balance no es igual")
 
-    def test_get_balance(self):
-        assert self.account.get_balance() == 1000
+    def test_get_balance_returns_current_balance(self):
+        self.assertEqual(self.account.get_balance(), 1000)
 
-    def test_transaction_log(self):
+    def test_deposit_logs_transaction(self):
         self.account.deposit(500)
-        assert os.path.exists("transaction_log.txt")
-'''
-    def test_count_transactions(self):
-        assert self._count_lines(self.account.log_file) == 1
+        self.assertTrue(os.path.exists("transaction_log.txt"))
+
+    def test_withdraw_logs_each_transaction(self):
+        self.assertEqual(self._count_lines(self.account.log_file), 1)
         self.account.deposit(500)
-        assert self._count_lines(self.account.log_file) == 2
-'''
+        self.assertEqual(self._count_lines(self.account.log_file), 2)
+
+    @patch("src.bank_account.datetime")
+    def test_withdraw_raises_error_when_insufficient_funds(self, mock_datetime):
+        mock_datetime.now.return_value.hour = 10
+        with self.assertRaises(InsufficientFundsError):
+            self.account.withdraw(2000)
+
+    @patch("src.bank_account.datetime")
+    def test_withdraw_during_bussines_hours(self, mock_datetime):
+        mock_datetime.now.return_value.hour = 8
+        new_balance = self.account.withdraw(100)
+        self.assertEqual(new_balance, 900)
+
+    @patch("src.bank_account.datetime")
+    def test_withdraw_disallow_before_bussines_hours(self, mock_datetime):
+        mock_datetime.now.return_value.hour = 7
+        with self.assertRaises(WithdrawalTimeRestrictionError):
+            self.account.withdraw(100)
+
+    @patch("src.bank_account.datetime")
+    def test_withdraw_disallow_after_bussines_hours(self, mock_datetime):
+        mock_datetime.now.return_value.hour = 18
+        with self.assertRaises(WithdrawalTimeRestrictionError):
+            self.account.withdraw(100)
+
+
+    def test_deposit_multiple_ammounts(self):
+
+        test_cases = [
+            {"ammount": 100, "expected": 1100},
+            {"ammount": 3000, "expected": 4000},
+            {"ammount": 4500, "expected": 5500},
+        ]
+        for case in test_cases:
+            with self.subTest(case=case):
+                self.account = BankAccount(balance=1000, log_file="transactions.txt")
+                new_balance = self.account.deposit(case["ammount"])
+                self.assertEqual(new_balance, case["expected"])
