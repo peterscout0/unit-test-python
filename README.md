@@ -2,7 +2,6 @@
 Link de la documentación Unittest en Python
 https://docs.python.org/es/3/library/unittest.html
 
-
 comando en terminal para ejecutar las pruebas: 
 python -m unittest discover -s tests  # 
 -s es para indicar la carpeta donde están los tests
